@@ -441,12 +441,26 @@ else:
         # ==========================
 
         try:
+            import time
 
             sheet_name = row["sheet_name"]
+
+            start = time.time()
 
             df = read_dataset_from_sheet(
                 sheet_name
             )
+
+            end = time.time()
+
+            st.write(
+                f"⏱ Waktu baca dataset: {end-start:.2f} detik"
+            )
+
+            st.write(
+                f"📊 Ukuran Dataset: {df.shape}"
+            )
+           
 
             st.subheader("📊 Data Dataset")
 
