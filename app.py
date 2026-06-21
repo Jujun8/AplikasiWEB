@@ -5,6 +5,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 import re
 from datetime import datetime
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 # =====================================
 # GOOGLE SHEETS & DRIVE
@@ -25,6 +28,45 @@ creds = Credentials.from_service_account_info(
 )
 
 gc = gspread.authorize(creds)
+
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
+
+@st.cache_resource
+def get_drive_service():
+    return build(
+        "drive",
+        "v3",
+        credentials=creds
+    )
+
+def upload_to_drive(uploaded_file):
+
+    drive_service = get_drive_service()
+
+    file_metadata = {
+        "name": uploaded_file.name,
+        "parents": ["1izav_UYzBBbJB3QkAjJFzmxmY-aRkZOU"]
+    }
+
+    file_stream = io.BytesIO(
+        uploaded_file.getvalue()
+    )
+
+    media = MediaIoBaseUpload(
+        file_stream,
+        mimetype="text/csv",
+        resumable=True
+    )
+
+    file = drive_service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id"
+    ).execute()
+
+    return file.get("id")
 
 
 SPREADSHEET_ID = "1devdxVPKESQCYCaC8UdEZt2jyqjxFXPLhGN2nVlLiQo"
@@ -356,9 +398,8 @@ if st.button("💾 Simpan Dataset"):
             nama_dataset
         )
 
-        save_dataset_to_sheet(
-            df_upload,
-            sheet_name
+        file_id = upload_to_drive(
+            uploaded_file
         )
 
         metadata_sheet = get_metadata_sheet()
@@ -368,7 +409,7 @@ if st.button("💾 Simpan Dataset"):
             opd_select,
             nama_dataset,
             keterangan,
-            sheet_name,
+            file_id,
             datetime.now().strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
@@ -443,15 +484,11 @@ else:
         try:
             import time
 
-            sheet_name = row["sheet_name"]
+            file_id = row["file_id"]
 
-            start = time.time()
-
-            df = read_dataset_from_sheet(
-                sheet_name
+            df = read_dataset_from_drive(
+                file_id
             )
-
-            end = time.time()
 
             st.write(
                 f"⏱ Waktu baca dataset: {end-start:.2f} detik"
@@ -499,7 +536,14 @@ else:
         # ==========================
         # HAPUS DATASET
         # ==========================
+def delete_file_drive(file_id):
 
+    drive_service = get_drive_service()
+
+    drive_service.files().delete(
+        fileId=file_id
+    ).execute()
+    
         if st.button(
             "🗑 Hapus Dataset",
             type="primary"
@@ -521,6 +565,9 @@ else:
 
                 st.success(
                     "Dataset berhasil dihapus"
+                )
+                delete_file_drive(
+                    row["file_id"]
                 )
 
                 st.rerun()
